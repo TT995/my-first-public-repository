@@ -56,7 +56,7 @@ git push origin main
 - 打ち消し commit を追加
 - 履歴は保持される
 - チーム開発向け
-```
+
 
 
 
