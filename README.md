@@ -57,3 +57,130 @@ git push origin main
 - 履歴は保持される
 - チーム開発向け
 ```
+
+# `@AuthenticationPrincipal Jwt jwt` の使い方
+
+## 概要
+
+```java
+@AuthenticationPrincipal Jwt jwt
+```
+
+と書くと、Spring Security が現在ログイン中ユーザーの JWT を controller 引数に自動注入する。
+
+内部的には `SecurityContextHolder` から取得している。
+
+---
+
+# 使用例
+
+```java
+@RestController
+public class PostController {
+
+    @PostMapping("/posts")
+    public void createPost(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody CreatePostRequest request
+    ) {
+
+        String userId = jwt.getSubject();
+
+        System.out.println(userId);
+
+        System.out.println(request.text());
+    }
+}
+```
+
+---
+
+# 何が起きているか
+
+クライアント:
+
+```http
+POST /posts
+Authorization: Bearer eyJ...
+```
+
+↓
+
+Spring Security が access token(JWT) を検証
+
+↓
+
+`Authentication` を生成
+
+↓
+
+`SecurityContextHolder` に保存
+
+↓
+
+`@AuthenticationPrincipal` が JWT を controller 引数へ注入
+
+---
+
+# よく使うメソッド
+
+## ユーザーID(sub)
+
+```java
+jwt.getSubject()
+```
+
+---
+
+## claim取得
+
+```java
+jwt.getClaim("email")
+```
+
+```java
+jwt.getClaim("cognito:username")
+```
+
+---
+
+# 内部的にやっていること
+
+以下を Spring が自動化している。
+
+```java
+Authentication auth =
+    SecurityContextHolder.getContext()
+        .getAuthentication();
+
+Jwt jwt = (Jwt) auth.getPrincipal();
+```
+
+---
+
+# 利点
+
+- 毎回 `SecurityContextHolder` を書かなくてよい
+- 現在ユーザーを簡単に取得できる
+- userId を request body に含める必要がない
+- JWT認証との相性が良い
+
+---
+
+# 注意
+
+通常、ユーザー識別は JWT から行う。
+
+危険:
+
+```json
+{
+  "userId": "admin"
+}
+```
+
+安全:
+
+```java
+String userId = jwt.getSubject();
+```
