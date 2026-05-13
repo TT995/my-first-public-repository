@@ -187,3 +187,100 @@ Jwt jwt = (Jwt) auth.getPrincipal();
 ```java
 String userId = jwt.getSubject();
 ```
+
+# search
+
+```java
+@Repository
+@RequiredArgsConstructor
+public class SearchRepository {
+
+    private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    public List<Post> getTargetPosts(
+            String key,
+            List<Integer> tagIdList
+    ) {
+
+        StringBuilder sql = new StringBuilder("""
+            SELECT DISTINCT p.*
+            FROM post p
+            LEFT JOIN post_tag pt
+                ON p.id = pt.post_id
+            WHERE 1 = 1
+        """);
+
+        MapSqlParameterSource params = new MapSqlParameterSource();
+
+        // key の部分一致
+        if (key != null && !key.isBlank()) {
+
+            sql.append("""
+                AND p.content ILIKE :key
+            """);
+
+            params.addValue("key", "%" + key + "%");
+        }
+
+        // tag の OR 検索
+        if (tagIdList != null && !tagIdList.isEmpty()) {
+
+            sql.append("""
+                AND pt.tag_id IN (:tagIds)
+            """);
+
+            params.addValue("tagIds", tagIdList);
+        }
+
+        return jdbcTemplate.query(
+                sql.toString(),
+                params,
+                (rs, rowNum) -> new Post(
+                        rs.getInt("id"),
+                        rs.getString("content")
+                )
+        );
+    }
+}
+```
+
+```java
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api")
+public class SearchController {
+
+    private final SearchRepository searchRepository;
+
+    @GetMapping("/search")
+    public List<Post> getTargetPosts(
+            @RequestParam(required = false) String key,
+
+            @RequestParam(
+                    name = "tag",
+                    required = false
+            )
+            List<Integer> tagIdList
+    ) {
+
+        return searchRepository.getTargetPosts(
+                key,
+                tagIdList
+        );
+    }
+}
+```
+
+# メモ
+
+- `/api/search?key=Java&tag=1&tag=2`
+  のような URL は自然
+
+- `tag=1&tag=2`
+  は Spring が `List<Integer>` に自動変換
+
+- `key=` は空文字 `""`
+  `key` 自体が無い場合は `null`
+
+- `WHERE 1 = 1`
+  は後ろに `AND` を機械的に追加
